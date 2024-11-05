@@ -2,14 +2,11 @@ import path from "path";
 import fs from "fs";
 import { setTimeout } from "timers/promises";
 
-let blockHeight = 174376;
+let blockHeight = 186905;
 // Nakamoto went live on block 171832
-(async () => {
-  fs.writeFileSync(
-    path.resolve("results.csv"),
-    "block,tenure_height,txs,read_count,read_length,runtime,write_count,write_length\n"
-  );
-  while (blockHeight > 169288) {
+
+const getBlockInfo = async (blockHeight) => {
+  try {
     const response = await fetch(
       `https://api.hiro.so/extended/v2/blocks/${blockHeight}`,
       {
@@ -20,7 +17,26 @@ let blockHeight = 174376;
         method: "GET",
       }
     );
+    if (response.status !== 200) {
+      console.info("Bad response...", response.status, "waiting to retry");
+      await setTimeout(30_000);
+      return getBlockInfo(blockHeight);
+    }
+    return response;
+  } catch (error) {
+    console.error("error", error, "retrying in 1 second");
+    await setTimeout(1000);
+    return getBlockInfo(blockHeight);
+  }
+};
 
+(async () => {
+  fs.writeFileSync(
+    path.resolve("results.csv"),
+    "block,tenure_height,txs,read_count,read_length,runtime,write_count,write_length\n"
+  );
+  while (blockHeight > 1000) {
+    const response = await getBlockInfo(blockHeight);
     const responseBody = await response.json();
     const txCount = responseBody.tx_count;
     const tenureHeight = responseBody.tenure_height;
